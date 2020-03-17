@@ -10,7 +10,7 @@
 #include <cstring>
 #include <memory>
 
-#include "../c2_vpcodec/include/vpcodec_1_0.h"
+#include "hicodec.h"
 
 
 const int DEFAULT_BITRATE = 1000000 * 5;
@@ -39,9 +39,6 @@ public:
 
 int main(int argc, char** argv)
 {
-	int io;
-
-
 	// options
 	int width = -1;
 	int height = -1;
@@ -94,10 +91,13 @@ int main(int argc, char** argv)
 	fprintf(stderr, "vl_video_encoder_init: width=%d, height=%d, frame_rate=%d, bit_rate=%d, gop=%d\n",
 		width, height, framerate, bitrate, gop);
 
-	vl_codec_id_t codec_id = CODEC_ID_H264;
-	vl_img_format_t img_format = IMG_FMT_NV12;
-	vl_codec_handle_t handle = vl_video_encoder_init(codec_id, width, height, framerate, bitrate, gop, img_format);
-	fprintf(stderr, "handle = %ld\n", handle);
+	SHICODEC codec;
+	if (!vl_video_encoder_init(&codec, CODEC_ID_H264, width, height, framerate, bitrate, gop))
+	{
+		fprintf(stderr, "failed to init encoder.\n");
+		return -1;
+	}
+	fprintf(stderr, "handle = %d\n", codec.hPlayer);
 
 
 
@@ -108,10 +108,10 @@ int main(int argc, char** argv)
 	int bufferSize = width * height;	// Y	
 	bufferSize += bufferSize / 2;	// U, V
 
-	unsigned char* input = new unsigned char[bufferSize];
+	uint8_t* input = new uint8_t[bufferSize];
 
 	const int outputBufferSize = width * height * 4;
-	char* outputBuffer = new char[outputBufferSize];
+	uint8_t* outputBuffer = new uint8_t[outputBufferSize];
 
 	while (true)
 	{
@@ -125,7 +125,7 @@ int main(int argc, char** argv)
 				//throw Exception("read failed.");
 
 				// End of stream?
-				fprintf(stderr, "read failed. (%ld)\n", readCount);
+				fprintf(stderr, "read failed. (%d)\n", readCount);
 				break;
 			}
 			else
@@ -136,17 +136,16 @@ int main(int argc, char** argv)
 
 		if (totalRead < bufferSize)
 		{
-			fprintf(stderr, "read underflow. (%ld of %d)\n", totalRead, bufferSize);
+			fprintf(stderr, "read underflow. (%d of %d)\n", totalRead, bufferSize);
 			break;
 		}
 
 
 		// Encode the video frames
-		vl_frame_type_t type = FRAME_TYPE_AUTO;
-		char* in = (char*)input;
+		uint8_t* in = input;
 		int in_size = bufferSize;
-		char* out = outputBuffer;
-		int outCnt = vl_video_encoder_encode(handle, type, in, in_size, &out);
+		uint8_t* out = outputBuffer;
+		int outCnt = vl_video_encoder_encode(&codec, FRAME_TYPE_AUTO, in, in_size, &out);
 		
 		if (outCnt > outputBufferSize)
 		{
@@ -174,7 +173,7 @@ int main(int argc, char** argv)
 
 
 	// Close the decoder
-	vl_video_encoder_destory(handle);
+	vl_video_encoder_destroy(&codec);
 
 	return 0;
 }
